@@ -8,18 +8,32 @@ public class NejikoController : MonoBehaviour
     const int MinLane = -2; //レーンのサイズ
     const int MaxLane = 2;
     const float LaneWidth = 1.0f;
+    const int DefaultLife = 3;
+    const float StunDuration = 0.5f; //気絶状態の時間0.5秒
 
     CharacterController controller;
     Animator animator;
 
     Vector3 moveDirection = Vector3.zero; //
     int targetLane;
+    int life = DefaultLife;
+    float recoverTime = 0.0f; //これに値が入るとスタン状態。０だと通常
 
     public float gravity;
     public float speedz;
     public float speedx;
     public float speedJump;
     public float accelerationZ; //加速値
+
+    public int Life()
+    {
+        return life;
+    }
+
+    bool IsStun()
+    {
+        return recoverTime > 0.0f || life <= 0;
+    }
 
     // Start is called before the first frame update
     void Start()
@@ -37,13 +51,23 @@ public class NejikoController : MonoBehaviour
         if (Input.GetKeyDown("right")) MoveToRight();
         if (Input.GetKeyDown("space")) Jump();
 
-        //徐々に加速しZ方向に常に前進させる
-        float acceleratedZ = moveDirection.z + (accelerationZ * Time.deltaTime);
-        moveDirection.z = Mathf.Clamp(acceleratedZ, 0, speedz); //clampで加速時の速度制限を追加、mathminとmathmaxを同時にやっている感じ
+        if (IsStun())
+        {
+            //動きをとめ、気絶状態からの復帰カウントをすすめる
+            moveDirection.x = 0.0f;
+            moveDirection.z = 0.0f;
+            recoverTime -= Time.deltaTime;
+        }
+        else
+        {
+            //徐々に加速しZ方向に常に前進させる
+            float acceleratedZ = moveDirection.z + (accelerationZ * Time.deltaTime);
+            moveDirection.z = Mathf.Clamp(acceleratedZ, 0, speedz); //clampで加速時の速度制限を追加、mathminとmathmaxを同時にやっている感じ
 
-        //x方向は目標のポジションまでの差分の割合で速度を計算
-        float ratioX = (targetLane * LaneWidth - transform.position.x) / LaneWidth;
-        moveDirection.x = ratioX * speedx;
+            //x方向は目標のポジションまでの差分の割合で速度を計算
+            float ratioX = (targetLane * LaneWidth - transform.position.x) / LaneWidth;
+            moveDirection.x = ratioX * speedx;
+        }
 
         if (controller.isGrounded) //地面に接しているか判定するisGrounded
         {
@@ -80,20 +104,23 @@ public class NejikoController : MonoBehaviour
         animator.SetBool("run", moveDirection.z > 0.0f);
     }
 
-    //左のレーンにいどうを開始
+    //左のレーンに移動を開始
     public void MoveToLeft()
     {
+        if (IsStun()) return;
         if (controller.isGrounded && targetLane > MinLane) targetLane--;
     }
 
     //右のレーンに移動を開始
     public void MoveToRight()
     {
+        if (IsStun()) return;
         if (controller.isGrounded && targetLane < MaxLane) targetLane++;
     }
 
     public void Jump()
     {
+        if (IsStun()) return;
         if (controller.isGrounded)
         {
             moveDirection.y = speedJump;
@@ -101,5 +128,25 @@ public class NejikoController : MonoBehaviour
             //ジャンプトリガーを設定
             animator.SetTrigger("jump");
         }
+    }
+
+    //CharacterControllerに衝突判定が生じたときの処理
+    void OnControllerColliderHit(ControllerColliderHit hit)
+    {
+        if (IsStun()) return; //スタン中にスタンしない
+
+        if (hit.gameObject.CompareTag("Robo"))
+        {
+            //ライフをへらして気絶状態に移行
+            life--;
+            recoverTime = StunDuration;
+
+            //ダメージトリガーを設定
+            animator.SetTrigger("damage");
+
+            //ヒットしたオブジェクトは削除
+            Destroy(hit.gameObject);
+        }
+
     }
 }
