@@ -30,7 +30,7 @@ public class GameController : MonoBehaviour
         lifePanel.UpdateLife(nejiko.Life()); //lifepanelスクリプトのなかのlifeメソッドを実行
 
         //ねじこのライフが０になったらゲームオーバー
-        if (nejiko.Life() <= 0)
+        if (nejiko.Life() <= 0 || nejiko.transform.position.y < 0)
         {
             //これ以降のUpdateは止める
             enabled = false;
